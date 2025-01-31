@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>P&ID Drawing Update with GEN-AI</title>
+    <link rel="stylesheet" href="/static/style03.css" />
+    <!-- Include your CSS -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="main-container">
+      <div id="top-section">
+        <h1 id="header">Updating P&ID Drawings using GEN-AI</h1>
+        <div class="upload-section">
+          <button id="instructions-button">Instructions</button>
+          <!-- Dropdown for selecting API Key -->
+          <div class="api-key-container" style="height: 60px; padding: 16px;">
+            <label for="api-key-display">GenAI Service: </label>
+            <div id="api-key-display" style="width: 120px; height: 25px; font-size: 18px; padding: 2px;" >
+              {{ session['api_key'] if 'api_key' in session and
+              session['api_key'] else "No service selected" }}
+            </div>
+          </div>
+
+          <div class="form-div"style="height: 60px;">
+            <form
+              id="upload-form"
+              method="post"
+              action="{{ url_for('upload_folder') }}"
+              enctype="multipart/form-data"
+            >
+            <label for="folder-upload">Select the folder to upload:</label>
+            <input 
+              type="file"
+              name="files"
+              id="folder-upload"
+              webkitdirectory
+              directory
+              required
+              onchange="enableUploadButton()"
+              style="width: 300px; height: 44px; font-size: 15px; padding: 12px;" 
+            />
+
+              <button style="height: 33px;width: 135px;"
+                type="button"
+                class="upload-button"
+                id="upload-button"
+                onclick="handleUpload()"
+                disabled
+              >
+                Upload
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div id="action-area">
+        <div class="drawing-area">
+          {% if graph_url %}
+          <img src="{{ graph_url }}" alt="Generated Graph" class="img-graph" style="cursor: pointer;" />
+          {% endif %}
+          {% if image_file %}
+          <img
+              src="{{ url_for('uploaded_file', filename=image_file) }}"
+              alt="Uploaded P&ID Drawing"
+              class="img-graph"
+              style="cursor: pointer;"
+          />
+          {% endif %}
+      </div>
+      
+      <div id="overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); justify-content: center; align-items: center; z-index: 1000;">
+          <span id="close-btn" style="position: absolute; top: 20px; right: 20px; color: white; font-size: 40px; font-weight: bold; cursor: pointer; z-index: 1001;">&times;</span>
+          <img id="enlarged-image" alt="Enlarged View" style="max-width: 90%; max-height: 90%;"/>
+      </div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var images = document.querySelectorAll(".img-graph");
+    var overlay = document.getElementById("overlay");
+    var closeBtn = document.getElementById("close-btn");
+    var enlargedImage = document.getElementById("enlarged-image");
+
+    images.forEach(function(image) {
+        image.addEventListener("click", function() {
+            enlargedImage.src = image.src;
+            overlay.style.display = "flex";
+        });
+    });
+
+    closeBtn.addEventListener("click", function() {
+        overlay.style.display = "none";
+    });
+
+    overlay.addEventListener("click", function(event) {
+        if (event.target === overlay) {
+            overlay.style.display = "none";
+        }
+    });
+});
+
+</script>      
+        <div id="chat-container">
+          <h3 class="chat-header">AI Assistant</h3>
+          <div class="chat-box" id="chat-box">
+            <!-- Messages will appear here -->
+            <div class="prompts" style="margin-top: 7px;">
+              <script>
+                  document.addEventListener("DOMContentLoaded", function () {
+                      const initialMessage = "Hello! I can assist you with updating the PID network by adding, modifying, or deleting components as nodes and edges.";
+          
+                      // Get the container where the message will be added
+                      const chatBox = document.getElementById("chat-box");
+          
+                      // Create the message element
+                      const messageElement = document.createElement("div");
+                      messageElement.classList.add("message", "system"); // Add system message class
+          
+                      // Add styles for message
+                      messageElement.style.backgroundColor = "#65e0f8"; // Light grey background for system message
+                      messageElement.style.borderRadius = "8px"; // Rounded corners
+                      messageElement.style.padding = "5px"; // Padding for better readability
+                      messageElement.style.display = "flex"; // Flex for icon + text layout
+                      messageElement.style.alignItems = "center"; // Align icon and text vertically
+                      messageElement.style.marginBottom = "2px"; // Adjust spacing between message and buttons
+          
+                      // Add icon based on sender type
+                      const icon = document.createElement("i");
+                      icon.classList.add("icon", "fas", "fa-robot"); // Use FontAwesome class for robot icon
+                      icon.style.marginRight = "10px"; // Space between icon and text
+                      icon.style.fontSize = "20px"; // Adjust icon size
+                      icon.style.color = "#000000"; // Bot icon color (blue)
+          
+                      // Append icon and message text
+                      const text = document.createElement("span");
+                      text.innerText = initialMessage;
+                      text.style.color = "#333"; // Dark text for contrast
+                      text.style.fontSize = "11px"; // Adjust text size
+          
+                      messageElement.appendChild(icon); // Add icon to message
+                      messageElement.appendChild(text); // Add text to message
+          
+                      // Append the message element to the chat box
+                      chatBox.prepend(messageElement); // Add message at the top of the chat box
+                  });
+              </script>
+          
+              <div id="chat-box" style="margin-bottom: 3px;"></div> <!-- Added small margin for chat box -->
+              
+              <pre style="display: flex; flex-direction: column; text-wrap: wrap; justify-content: flex-start; padding: 0; gap: 5px;">
+                <button class="sample-prompt-button" onclick="appendPrompt('Add <NewItemTag> to <ExistingItemTag>.')" style="width: fit-content; color: black; text-align: left; border: none; padding: 5px 10px; font-size: 11px; cursor: pointer; border-radius: 5px; transition: background-color 0.3s ease;">Add &lt;NewItemTag&gt; to &lt;ExistingItemTag&gt;.</button>
+                <button class="sample-prompt-button" onclick="appendPrompt('Add <NewItemTag> between <ExistingItemTag1> and <ExistingItemTag2>.')" style="width: fit-content; text-align: left; border: none; color: black; padding: 5px 10px; font-size: 11px; cursor: pointer; border-radius: 5px; transition: background-color 0.3s ease;">Add &lt;NewItemTag&gt; between &lt;ExistingItemTag1&gt; and &lt;ExistingItemTag2&gt;.</button>
+                <button class="sample-prompt-button" onclick="appendPrompt('Add <NewItemTag1>, <NewItemTag2>, and <NewItemTag3> to <ExistingItemTag>.')" style="width: fit-content; text-align: left; border: none; color: black; padding: 5px 10px; font-size: 11px; cursor: pointer; border-radius: 5px; transition: background-color 0.3s ease;">Add &lt;NewItemTag1&gt;, &lt;NewItemTag2&gt;, and &lt;NewItemTag3&gt; to &lt;ExistingItemTag&gt;.</button>
+                <button class="sample-prompt-button" onclick="appendPrompt('Replace <ExistingItemTag> with <Type> <NewItemTag>.')" style="text-align: left; width: fit-content; border: none; color: black; padding: 5px 10px; font-size: 11px; cursor: pointer; border-radius: 5px; transition: background-color 0.3s ease;">Replace &lt;ExistingItemTag&gt; with &lt;Type&gt; &lt;NewItemTag&gt;.</button>
+                <button class="sample-prompt-button" onclick="appendPrompt('Add subnetwork <Type> <NewItemTag>, <Type> <NewItemTag>, and <Type> <NewItemTag> to <Type> <ExistingItemTag>.')" style="width: fit-content; text-align: left; border: none; color: black; padding: 5px 10px; font-size: 11px; cursor: pointer; border-radius: 5px; transition: background-color 0.3s ease;">Add subnetwork &lt;Type&gt; &lt;NewItemTag&gt;, &lt;Type&gt; &lt;NewItemTag&gt;, and &lt;Type&gt; &lt;NewItemTag&gt; to &lt;Type&gt; &lt;ExistingItemTag&gt;.</button>
+                <button class="sample-prompt-button" onclick="appendPrompt('Delete <ExistingItemTag>.')" style="width: fit-content; text-align: left; border: none; color: black; padding: 5px 10px; font-size: 11px; cursor: pointer; border-radius: 5px; transition: background-color 0.3s ease;">Delete &lt;ExistingItemTag&gt;.</button>
+              </pre>
+          </div>
+          </div>
+          <div class="chat-in" style="height: 60px; width: 520px;" >
+            <textarea
+              class="chat-input"
+              id="chat-input"
+              placeholder="Type your prompt here..."
+              style="width: 100%; height: 70px; resize: none; box-sizing: border-box;"
+            ></textarea>
+            <input type="hidden" name="folder" value="uploaded_files" />
+            <button class="send-button" id="submit-button" style="width: 90px;">Send</button>
+          </div>  
+          
+        </div>
+        <script>
+          function appendPrompt(promptText) {
+            document.getElementById('chat-input').value = promptText;
+          }
+        </script>
+        
+        
+      </div>
+
+      <div id="bottom-section">
+        <div class="button" id="finish-button">Restart</div>
+        <a
+          href="{{ url_for('download_csvs') }}"
+          class="button"
+          id="download-nodes-button"
+          >Download CSVs</a
+        >
+        <a
+          href="{{ url_for('download_graph') }}"
+          class="button"
+          id="download-graph-button"
+          >Download Graph</a
+        >
+      </div>
+    </div>
+     <!-- The Modal -->
+     <div id="instructions-modal" class="modal">
+      <div class="modal-content" style="box-sizing: content-box; padding: 0px;">
+        <span class="close " style="position: fixed;  margin-left: 650px; z-index: 2;">&times;</span>
+        <div style="  position: relative;" class="container">
+          <div  class="instructions" >
+            <div style="position: sticky;  top:0px; width:100%;">
+              <h2 style="background-color: rgb(255, 255, 255); margin-top:0px; ">Instructions to Run the Application:</h2>
+            </div>
+          <pre style="margin-top: 20px;">
+     1. Select the AI Service:
+      - Use the dropdown to select the Gen AI service(e.g., Gemin, Azure OpenAI, or OpenAI).
+
+     2. Upload Files:
+      - Click on the "Choose File" button.
+      - Select a folder containing:
+      - nodes.csv file
+      - edges.csv file
+      - PID diagram (image).
+      - Click the "Upload" button.
+
+     3. Interact with the AI Assistant:
+      - Enter your prompt in the chat application.
+      - Click "Submit" or press Enter.
+      - Respond to the Yes/No confirmation by clicking buttons or typing 'yes'/'no'.
+
+     4. Generate and View Graph:
+      - If the prompt is correct, the graph will be generated.
+      - Click "View Graph" to see the graph.
+
+     5. Continue with Prompts:
+      - Use the chat-input field to continue giving prompts on the same diagram.
+
+     6. Download Options:
+      - Use "Download CSV" to download updated CSV files.
+      - Use "Download Graph" to save the updated graph.
+
+     7. Restart:
+      - Click the "Restart" button to start the process from the beginning.
+        </pre>
+          <div class="prompts" style="padding-left: 14px;">
+            <h2>Sample Prompts:</h2>
+            <ul style="list-style-type: none; padding: 0;">
+              <li style="margin-bottom: 15px;">
+                <strong>Add:</strong> <br> Add <code>&lt;Type&gt; &lt;NewItemTag&gt;</code> to <code>&lt;ExistingItemTag&gt;</code>.
+              </li>
+              <li style="margin-bottom: 15px;">
+                <strong>Insert:</strong> <br> Insert <code>&lt;Type&gt; &lt;NewItemTag&gt;</code> onto <code>&lt;ExistingItemTag&gt;</code>.
+              </li>
+              <li style="margin-bottom: 15px;">
+                <strong>Remove:</strong> <br> Remove the element <code>&lt;ExistingItemTag&gt;</code>.
+              </li>
+              <li style="margin-bottom: 15px;">
+                <strong>Attach:</strong> <br> Attach <code>&lt;Type&gt; &lt;NewItemTag&gt;</code> to <code>&lt;ExistingItemTag&gt;</code>.
+              </li>
+              <li style="margin-bottom: 15px;">
+                <strong>Add Between:</strong> <br> Add <code>&lt;Type&gt; &lt;NewItemTag&gt;</code> between 
+                <code>&lt;ExistingItemTag1&gt;</code> and <code>&lt;ExistingItemTag2&gt;</code>.
+              </li>
+              <li style="margin-bottom: 15px;">
+                <strong>Add Multiple:</strong> <br> Add 
+                <code>&lt;Type&gt; &lt;NewItemTag1&gt;</code>, <code>&lt;Type&gt; &lt;NewItemTag2&gt;</code>, and 
+                <code>&lt;Type&gt; &lt;NewItemTag3&gt;</code> to <code>&lt;ExistingItemTag&gt;</code>.
+              </li>
+              <li style="margin-bottom: 15px;">
+                <strong>Replace:</strong> <br> Replace <code>&lt;ExistingItemTag&gt;</code> with 
+                <code>&lt;Type&gt; &lt;NewItemTag&gt;</code>.
+              </li>
+              <li style="margin-bottom: 15px;">
+                <strong>Change Position:</strong> <br> Change the position of <code>&lt;ExistingItemTag&gt;</code> from coordinates 
+                <code>(&lt;ExistingXCoordinate&gt;, &lt;ExistingYCoordinate&gt;)</code> to 
+                <code>(&lt;NewXCoordinate&gt;, &lt;NewYCoordinate&gt;)</code>.
+              </li>
+            </ul>
+          </div>
+                  <!-- Example Prompts -->
+        <!-- Example Prompts -->
+        <div style="display:flex; flex-direction: column; padding-left: 30px;">
+          <h2>Example Prompts:</h2>
+          
+          <h3>Adding an Element</h3>
+          <ul style="display: flex;flex-direction: column;">
+              <li>Add h4 to HEA-5087.</li>
+              <li>Add a vent nozzle as V-432 between nodes with item tags HEA-5087 and FLT-5089.</li>
+              <li>Add a new pump as P100 to N3, update the type of N3 to Valve.</li>
+              <li>Insert a new nozzle labeled as N-6 onto the element with the item tag HEA-5087.</li>
+              <li>Attach sensor S-003 to HEA-5087.</li>
+              <li>Add N-12 and P-1 to HEA-5087.</li>
+          </ul>
+          <h3>Removing an Element</h3>
+          <ul style="display: flex;flex-direction: column;">
+              <li>Remove h4.</li>
+              <li>Delete N-12.</li>
+              <li>Swap out the element with item tag MCC-5085 with heater H3 (removal and replacement).</li>
+              <li>Delete the sensor S-2 from control unit HEA-5087 .</li>
+              <li>Remove filter F-7 between elements 75 and 320 (implied deletion).</li>
+              <li>Remove instrument I-11 from TE-6092 .</li>
+          </ul>
+          <h3>Adding Multiple Elements</h3>
+          <ul style="display: flex;flex-direction: column;">
+              <li>Add valves V-1 and V-2, and a pump P-1 to Piping Component 49.</li>
+              <li>Insert sensors S-2, S-3, and S-4 to control unit HEA-5087.</li>
+              <li>Add instruments I-10, I-11, and I-12 to the instrument with item tag TE-6092.</li>
+              <li>Add N-23, P-1, 3, and g21 to HEA-5087.</li>
+              <li>Attach sensor S-003, and valve V-4 to HEA-5087 (implied as multiple additions).</li>
+              <li>Place a cooler C-1, and filter F-7 near FLT-5089 .</li>
+          </ul>
+          <h3>Adding a Subnetwork</h3>
+          <ul style="display: flex;flex-direction: column;">
+              <li>Add subnetwork with N-1, P-1, and V-2 to FLT-5089.</li>
+              <li>Add subnetwork with pump P-3, cooler C-1, and valve V-4 to the main unit HEA-5087.</li>
+              <li>Attach a new subnetwork containing N-4, N-5, and valve V-6 to MCC-5086 .</li>
+              <li>Add a new network loop with P-9, F-4, and sensor S-11 to FLT-5089 .</li>
+              <li>Integrate a network of cooler C-7, pump P-8, and valve V-10 to Piping Component 60.</li>
+              <li>Add subnetwork N-5, N-6, and pump P-7 near FLT-5083 .</li>
+          </ul>
+          <h3>Adding an Element in Between Two Elements</h3>
+          <ul style="display: flex;flex-direction: column;">
+              <li>Insert valve V-6 between items 41 and 323.</li>
+              <li>Place filter F-7 between elements 75 and 320.</li>
+              <li>Add a vent nozzle as V-432 between nodes with item tags HEA-5087 and FLT-5089.</li>
+              <li>Add Piping Component P-23 between item tags FLT-5083 and MCC-5086.</li>
+              <li>Insert sensor S-5 between N3 and HEA-5087 .</li>
+              <li>Place a new valve V-11 between pump P-3 and filter F-9 .</li>
+          </ul>
+          <h3>Changing the Element Item Tag</h3>
+          <ul style="display: flex;flex-direction: column;">
+              <li>Change the element with item tag N2 to N3.</li>
+              <li>Change the element with item tag 247 to FLT-53.</li>
+              <li>Modify the element with item tag FLT-5083 to FLT-43.</li>
+              <li>Update the type of element MCC-5085 to valve V-50.</li>
+              <li>Swap out the element with item tag MCC-5085 with heater H3.</li>
+              <li>Update the element with item tag TE-5090 to Piping Component 65 .</li>
+          </ul>
+          <h3>Updating the Element or Item-Tag</h3>
+          <ul style="display: flex;flex-direction: column;">
+              <li>Update the type of N3 to Valve V3.</li>
+              <li>Modify the element MCC-5085 to heater H3.</li>
+              <li>Update HEA-5087 to include additional nozzle N-7</li>
+              <li>Update the control parameters as C-12 for sensor S-2 on HEA-5087 .</li>
+              <li>Update Piping Component P-23 with an integrated pressure gauge P-13 .</li>
+          </ul>
+          </div>
+        </div>
+          
+            </pre>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      let prompt = "";
+      let waitingForConfirmation = false;
+    
+      // Centralized submit handling function
+      function handleSubmit() {
+        const userPrompt = document.getElementById("chat-input").value.trim();
+    
+        if (waitingForConfirmation) {
+          handleConfirmation(userPrompt);
+        } else {
+          if (!userPrompt) {
+            appendMessage("Prompt is empty! Please enter a prompt.", "system");
+            return;
+          }
+    
+          prompt = userPrompt;
+          appendMessage(`${prompt}`, "user");
+          getModelResponse(prompt);
+          document.getElementById("chat-input").value = "";
+        }
+      }
+    
+      function getModelResponse(prompt) {
+        fetch("/get_model_response", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: prompt }),
+        })
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.status === "success") {
+            let modelResponse = JSON.parse(data.response);
+            appendMessage(modelResponse.response, "system", null, true); // Show the response text and the Yes/No buttons
+            waitingForConfirmation = true; // Enable confirmation waiting
+          } else {
+            appendMessage(data.message, "system", "#cf6969");
+          }
+        })
+        .catch((error) => {
+          console.error("Error during model response:", error);
+          appendMessage("An error occurred while fetching the model response: " + error.message, "system", "#cf6969");
+        });
+      }
+    
+      // Handle confirmation responses (yes/no)
+      function handleConfirmation(userInput) {
+        const chatBox = document.getElementById("chat-box");
+    
+        // Remove any existing confirmation buttons
+        const buttonContainers = chatBox.querySelectorAll(".button-container");
+        buttonContainers.forEach((container) => container.remove());
+    
+        if (userInput.toLowerCase() === "yes") {
+          appendMessage(`${userInput}`, "user");
+          document.getElementById("chat-input").value = "";
+          appendMessage("Operation is being processed...", "system");
+          updateCsvFiles(prompt);
+          document.getElementById("chat-input").disabled = true;
+        } else if (userInput.toLowerCase() === "no") {
+          appendMessage(`${userInput}`, "user");
+          appendMessage("Operation is cancelled. Enter a new prompt.", "system");
+          waitingForConfirmation = false;
+          document.getElementById("chat-input").disabled = false;
+          document.getElementById("chat-input").value = "";
+        } else {
+          appendMessage("Invalid input. Please type 'Yes' or 'No'.", "system");
+        }
+      }
+    
+      // Append message to the chat
+      function appendMessage(message, sender, backgroundColor = null, showButtons = false) {
+        const chatBox = document.getElementById("chat-box");
+        const messageElement = document.createElement("div");
+        messageElement.classList.add("message", sender);
+    
+        // Apply background color if provided
+        if (backgroundColor) {
+          messageElement.style.backgroundColor = backgroundColor;
+        }
+    
+        // Add icon based on sender type
+        const icon = document.createElement("i");
+        icon.classList.add("icon");
+    
+        if (sender === "user") {
+          icon.classList.add("fas", "fa-user");
+        } else if (sender === "system") {
+          icon.classList.add("fas", "fa-robot");
+        }
+    
+        // Append icon and message text to message element
+        messageElement.appendChild(icon);
+        const text = document.createElement("span");
+        text.innerText = message;
+        messageElement.appendChild(text);
+    
+        chatBox.appendChild(messageElement);
+    
+        // If buttons are to be shown, create Yes/No buttons
+        if (showButtons) {
+          const buttonContainer = document.createElement("div");
+          buttonContainer.classList.add("button-container");
+    
+          const yesButton = document.createElement("button");
+          yesButton.innerText = "Yes";
+          yesButton.classList.add("in-chat-button");
+          yesButton.onclick = () => {
+            handleConfirmation("yes");
+          };
+    
+          const noButton = document.createElement("button");
+          noButton.innerText = "No";
+          noButton.classList.add("in-chat-button");
+          noButton.onclick = () => {
+            handleConfirmation("no");
+          };
+    
+          buttonContainer.appendChild(yesButton);
+          buttonContainer.appendChild(noButton);
+          chatBox.appendChild(buttonContainer);
+        }
+    
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+    
+      // Updates CSV files based on the prompt
+      function updateCsvFiles(prompt) {
+        const folder = document.querySelector('input[name="folder"]').value;
+    
+        fetch("/update_csv", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: prompt, folder: folder }),
+        })
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error("Network response was not ok");
+          }
+          return response.json();
+        })
+        .then((data) => {
+            if (data.status === "success") {
+              appendMessage(data.message, "system");
+              generateGraph(folder);
+            } else {
+              appendMessage("Error updating CSV: " + data.message, "system", "#cf6969");
+              waitingForConfirmation = false; // Allow new prompt input
+            document.getElementById("chat-input").disabled = false; // Enable chat input
+            document.getElementById("chat-input").value = ""; // Clear input
+            }
+          })
+          .catch((error) => {
+            console.error("Error during CSV update:", error);
+            appendMessage("An error occurred: " + error.message, "system", "#cf6969");
+            appendMessage("Please enter a new prompt.", "system");
+            waitingForConfirmation = false; // Allow new prompt input
+            document.getElementById("chat-input").disabled = false; // Enable chat input
+          });
+      }
+    
+      // Generates a graph based on the CSV data
+      function generateGraph(folder) {
+        fetch("/generate_graph", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ folder: folder }),
+        })
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error("Network response was not ok");
+          }
+          return response.json();
+        })
+        .then((data) => {
+          if (data.status === "success") {
+            appendMessage("Graph generated successfully!", "system");
+            showOkButton();
+          } else {
+            appendMessage("Error generating graph: " + data.message, "system", "#cf6969");
+          }
+        })
+        .catch((error) => {
+          console.error("Error during graph generation:", error);
+          appendMessage("Error generating graph: " + error.message, "system", "#cf6969");
+        });
+      }
+    
+      // Event listener for the submit button
+      document.getElementById("submit-button").addEventListener("click", function () {
+        handleSubmit();
+      });
+    
+      // Event listener for Enter key in the chat input
+      document.getElementById("chat-input").addEventListener("keypress", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          handleSubmit();
+        }
+      });
+
+      // Shows OK button to view the generated graph
+      function showOkButton() {
+        const okButton = document.createElement("button");
+        okButton.innerText = "View Graph";
+        okButton.classList.add("view-graph-button");
+
+        okButton.addEventListener("click", function () {
+          const folder = document.querySelector('input[name="folder"]').value;
+          okButton.disabled = true;
+          // Make an AJAX request to fetch the graph URL from /generate_graph
+          fetch("/generate_graph", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ folder: folder }),
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              if (data.status === "success" && data.graph_url) {
+                // Dynamically update the graph image with a timestamp to avoid caching
+                const drawingArea = document.querySelector(".drawing-area");
+                const timestamp = new Date().getTime(); // Unique timestamp
+                drawingArea.innerHTML = `<img src="${data.graph_url}?t=${timestamp}" alt="Generated Graph" class="img-graph" />`;
+                appendMessage("Graph updated!", "system");
+
+                // Clear the chat input
+                document.getElementById("chat-input").value = "";
+
+                // Re-enable the prompt input for the user to give a new prompt
+                document.getElementById("chat-input").disabled = false;
+                waitingForConfirmation = false; // Allow new prompt flow to begin again
+              } else {
+                appendMessage(
+                  "Error displaying graph: " +
+                    (data.message || "Unknown error"),
+                  "system", "#cf6969"
+                );
+
+                // Clear the chat input if there's an error
+                document.getElementById("chat-input").value = "";
+              }
+            })
+            .catch((error) => {
+              console.error("Error displaying graph:", error);
+              appendMessage("An error occurred: " + error.message, "system","#cf6969");
+
+              // Clear the chat input if an error occurs
+              document.getElementById("chat-input").value = "";
+            });
+        });
+
+        document.getElementById("chat-box").appendChild(okButton);
+      }
+
+      const folder = "{{ folder }}"; // Ensure this value is being passed correctly from Flask to the template
+
+      // Finish button functionality
+      document
+        .getElementById("finish-button")
+        .addEventListener("click", function () {
+          const folder = "{{ folder }}";
+          window.location.href =
+            "{{ url_for('upload_another') }}?folder=" + folder;
+        });
+
+      document
+        .getElementById("download-nodes-button")
+        .addEventListener("click", function () {
+          console.log("Download Nodes button clicked");
+          window.location.href = "{{ url_for('download_csvs') }}";
+        });
+
+      document
+        .getElementById("download-graph-button")
+        .addEventListener("click", function () {
+          console.log("Download Graph button clicked");
+          window.location.href = "{{ url_for('download_graph') }}";
+        });
+
+      let isFolderUploaded = false;
+
+      function enableUploadButton() {
+        document.getElementById("upload-button").disabled = false;
+      }
+
+      function handleUpload() {
+        document.getElementById("upload-form").submit();
+      }
+      // Modal handling
+      const modal = document.getElementById("instructions-modal");
+      const btn = document.getElementById("instructions-button");
+      const span = document.getElementsByClassName("close")[0];
+
+      btn.onclick = function () {
+        modal.style.display = "block";
+      };
+
+      span.onclick = function () {
+        modal.style.display = "none";
+      };
+
+      window.onclick = function (event) {
+        if (event.target == modal) {
+          modal.style.display = "none";
+        }
+      };
+
+      document
+        .getElementById("api-key-select")
+        .addEventListener("change", function () {
+          document.getElementById("chat-input").disabled = false;
+          document.getElementById("submit-button").disabled = false;
+        });
+    </script>
+  </body>
+</html>
